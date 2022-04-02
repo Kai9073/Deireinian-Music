@@ -6,6 +6,7 @@ from tkinter import filedialog
 import tkinter.ttk as ttk
 import pygame
 from mutagen.mp3 import MP3
+from PIL import ImageTk, Image
 
 AssetsDir = os.path.join(os.path.dirname(__file__), "assets")
 ImagesDir = os.path.join(AssetsDir, "images")
@@ -14,257 +15,297 @@ config = configparser.ConfigParser()
 config.read(os.path.join(AssetsDir, "config.ini"))
 
 
-def get_photoimage(name): return PhotoImage(
-    file=os.path.join(ImagesDir, config["ImagePaths"][name]))
-
-
-root = Tk()
-root.title("Deireinian Music")
-root.iconbitmap(get_photoimage("icon"))
-root.geometry("500x300")
-
-# Init Pygame Mixer
-pygame.mixer.init()
-
-global paused
-global stopped
-paused = stopped = False
-
-# Functions
-
-
-def play_time():
-    if stopped:
-        return
-
-    current_time = pygame.mixer.music.get_pos() / 1000
-    strf_current_time = time.strftime('%M:%S', time.gmtime(current_time))
-
-    track = tracks_box.get(ACTIVE)
-    track_meta = MP3(track)
-
-    global track_length
-    track_length = track_meta.info.length
-
-    strf_track_length = time.strftime('%M:%S', time.gmtime(track_length))
-
-    current_time += 1
-
-    if int(slider.get()) == int(track_length):
-        status_bar.config(
-            text=f'Time Elapsed: {strf_track_length} of {strf_track_length}')
-    elif paused:
-        pass
-    elif int(slider.get()) == int(current_time):
-        slider_pos = int(track_length)
-        slider.config(to=slider_pos, value=int(current_time))
-    else:
-        slider_pos = int(track_length)
-        slider.config(to=slider_pos, value=int(slider.get()))
-        strf_current_time = time.strftime(
-            '%M:%S', time.gmtime(int(slider.get())))
-        status_bar.config(
-            text=f'Time Elapsed: {strf_current_time} of {strf_track_length}')
-        new_time = int(slider.get()) + 1
-        slider.config(value=new_time)
-
-    status_bar.after(1000, play_time)
-
-
-def add_track():
-    track_file = filedialog.askopenfilename(
-        initialdir=TracksDir, title="Choose A Song", filetypes=(("MP3 Audio Files", "*.mp3"), ))
-    track_filename = os.path.splitext(os.path.basename(track_file))[0]
-    tracks_box.insert(END, track_file)
-
-
-def add_multiple_tracks():
-    track_files = filedialog.askopenfilenames(
-        initialdir=TracksDir, title="Choose Songs", filetypes=(("MP3 Audio Files", "*.mp3"), ))
-    for file in track_files:
-        track_filename = os.path.splitext(os.path.basename(file))[0]
-        tracks_box.insert(END, file)
-
-
-def update_volume_img():
-
-    current_volume = pygame.mixer.music.get_volume() * 100
-
-    if int(current_volume) < 1:
-        volume_meter.config(image=vol_images[0])
-    elif int(current_volume) <= 25:
-        volume_meter.config(image=vol_images[1])
-    elif int(current_volume) <= 50:
-        volume_meter.config(image=vol_images[2])
-    elif int(current_volume) <= 75:
-        volume_meter.config(image=vol_images[3])
-    elif int(current_volume) <= 100:
-        volume_meter.config(image=vol_images[4])
-
-
-def play():
-    global stopped
-    stopped = False
-    track = tracks_box.get(ACTIVE)
-
-    pygame.mixer.music.load(track)
-    pygame.mixer.music.play(loops=0)
-
-    play_time()
-    update_volume_img()
-
-
-def stop():
-    status_bar.config(text="")
-    slider.config(value=0)
-
-    pygame.mixer.music.stop()
-    tracks_box.selection_clear(ACTIVE)
-
-    status_bar.config(text="")
-
-    global stopped
-    stopped = True
-
-    update_volume_img()
-
-
-def pause():
-    global paused
-
-    if paused:
-        pygame.mixer.music.unpause()
-        paused = False
-    else:
-        pygame.mixer.music.pause()
-        paused = True
-
-
-def move_track(step):
-    status_bar.config(text="")
-    slider.config(value=0)
-
-    current_track_pos = tracks_box.curselection()[0]
-    target_track_pos = current_track_pos + step
-
-    track = tracks_box.get(target_track_pos)
-    pygame.mixer.music.load(track)
-    pygame.mixer.music.play(loops=0)
-
-    tracks_box.selection_clear(0, END)
-    tracks_box.activate(target_track_pos)
-    tracks_box.selection_set(target_track_pos, last=None)
-
-
-def next_track():
-    move_track(1)
-
-
-def prev_track():
-    move_track(-1)
-
-
-def del_track():
-    stop()
-    tracks_box.delete(ANCHOR)
-    pygame.mixer.music.stop()
-
-
-def del_all():
-    stop()
-    tracks_box.delete(0, END)
-    pygame.mixer.music.stop()
-
-
-def slide(x):
-    track = tracks_box.get(ACTIVE)
-    pygame.mixer.music.load(track)
-    pygame.mixer.music.play(loops=0, start=int(slider.get()))
-
-
-def volume(x):
-    pygame.mixer.music.set_volume(volume_slider.get())
-    update_volume_img()
-
-
-master_frame = Frame(root)
-master_frame.pack(pady=20)
-
-
-# Create Track List Box
-tracks_box = Listbox(master_frame, bg="black", fg="green", width=60,
-                     selectbackground="gray", selectforeground="black")
-tracks_box.grid(row=0, column=0)
-
-
-PhotoImages = {
-    "backward": get_photoimage("BtnBackward"),
-    "forward": get_photoimage("BtnForward"),
-    "play": get_photoimage("BtnPlay"),
-    "pause": get_photoimage("BtnPause"),
-    "stop": get_photoimage("BtnStop"),
-    "vol0": get_photoimage("vol0"),
-    "vol1": get_photoimage("vol1"),
-    "vol2": get_photoimage("vol2"),
-    "vol3": get_photoimage("vol3"),
-    "vol4": get_photoimage("vol4")
-}
-
-global vol_images
-vol_images = (PhotoImages["vol0"], PhotoImages["vol1"],
-              PhotoImages["vol2"], PhotoImages["vol3"], PhotoImages["vol4"])
-
-
-# Create Ctrl Frame
-controls_frame = Frame(master_frame, height=10)
-controls_frame.grid(row=1, column=0, pady=20)
-
-volume_meter = Label(master_frame, image=vol_images[0])
-volume_meter.grid(row=1, column=1, padx=10)
-
-volume_frame = LabelFrame(master_frame, text="Volume")
-volume_frame.grid(row=0, column=1, padx=30)
-
-# Create Ctrl Btns
-backward_btn = Button(
-    controls_frame, image=PhotoImages["backward"], command=prev_track)
-forward_btn = Button(
-    controls_frame, image=PhotoImages["forward"], command=next_track)
-play_btn = Button(controls_frame, image=PhotoImages["play"], command=play)
-pause_btn = Button(controls_frame, image=PhotoImages["pause"], command=pause)
-stop_btn = Button(controls_frame, image=PhotoImages["stop"], command=stop)
-
-backward_btn.grid(row=0, column=0, ipadx=5, ipady=5)
-forward_btn.grid(row=0, column=1, ipadx=5, ipady=5)
-play_btn.grid(row=0, column=2, ipadx=5, ipady=5)
-pause_btn.grid(row=0, column=3, ipadx=5, ipady=5)
-stop_btn.grid(row=0, column=4, ipadx=5, ipady=5)
-
-menu = Menu(root)
-root.config(menu=menu)
-
-add_track_menu = Menu(menu)
-menu.add_cascade(label="Add Songs", menu=add_track_menu)
-add_track_menu.add_command(label="Add One Song To Playlist", command=add_track)
-add_track_menu.add_command(
-    label="Add Multiple Songs To Playlist", command=add_multiple_tracks)
-
-remove_song_menu = Menu(menu)
-menu.add_cascade(label="Remove Songs", menu=remove_song_menu)
-remove_song_menu.add_command(
-    label="Delete A Song From Playlist", command=del_track)
-remove_song_menu.add_command(
-    label="Delete All Songs From Playlist", command=del_all)
-
-status_bar = Label(root, text='', bd=1, relief=GROOVE, anchor=E)
-status_bar.pack(fill=X, side=BOTTOM, ipady=2)
-
-slider = ttk.Scale(master_frame, from_=0, to=100,
-                   orient=HORIZONTAL, value=0, command=slide, length=360)
-slider.grid(row=2, column=0, pady=10)
-
-volume_slider = ttk.Scale(volume_frame, from_=0, to=1,
-                          orient=VERTICAL, value=1, command=volume, length=125)
-volume_slider.pack(pady=10)
-
-root.mainloop()
+def get_photoimage(name):
+    return ImageTk.PhotoImage(
+        Image.open(os.path.join(ImagesDir, config["ImagePaths"][name]))
+    )
+
+# Classes
+
+
+class GUI:
+    def __init__(self):
+        global player
+        self.player = player
+
+        # Root #
+
+        self.root = Tk()
+        self.root.title("Deireinian Music")
+        self.root.iconphoto(False, get_photoimage("icon"))
+        self.root.geometry("500x450")
+
+        # Menu #
+
+        self.menu = Menu(self.root)
+        self.menu_add = Menu(self.menu)
+        self.menu_add.add_command(
+            label="Add One Song To Playlist",
+            command=lambda: player.add_track(multiple=False)
+        )
+        self.menu_add.add_command(
+            label="Add Multiple Songs To Playlist",
+            command=lambda: player.add_track(multiple=True)
+        )
+        self.menu_rmv = Menu(self.menu)
+        self.menu_rmv.add_command(
+            label="Delete A Song From Playlist",
+            command=player.del_track
+        )
+        self.menu_rmv.add_command(
+            label="Delete All Songs From Playlist",
+            command=player.del_all_tracks
+        )
+
+        self.menu.add_cascade(label="Add Songs", menu=self.menu_add)
+        self.menu.add_cascade(label="Remove Songs", menu=self.menu_rmv)
+
+        self.root.config(menu=self.menu)
+
+        # Main Frame #
+
+        self.frame = Frame(self.root)
+        self.frame.pack(pady=20)
+
+        # Tracks Box #
+
+        self.tracks_box = Listbox(
+            self.frame, fg="black", width=60,
+            selectbackground="gray", selectforeground="black"
+        )
+        self.tracks_box.grid(row=0, column=0)
+
+        # Controls #
+
+        self.controls_frame = Frame(self.frame)
+        self.controls_frame.grid(row=1, column=0, pady=20)
+
+        self.volume_frame = LabelFrame(self.frame, text="Volume")
+        self.volume_frame.grid(row=0, column=1, padx=30)
+
+        self.slider = ttk.Scale(self.frame, from_=0, to=100,
+                                orient=HORIZONTAL, value=0, command=self.slide, length=360)
+        self.slider.grid(row=2, column=0, pady=10)
+
+        self.volume_slider = ttk.Scale(self.volume_frame, from_=0, to=1,
+                                       orient=VERTICAL, value=1, command=self.volume, length=125)
+        self.volume_slider.pack(pady=10)
+
+        self.status = Label(self.root, text="", bd=1, relief=GROOVE, anchor=E)
+        self.status.pack(fill=X, side=BOTTOM, ipady=2)
+
+        self.images = {
+            "backward": get_photoimage("BtnBackward"),
+            "forward": get_photoimage("BtnForward"),
+            "play": get_photoimage("BtnPlay"),
+            "pause": get_photoimage("BtnPause"),
+            "stop": get_photoimage("BtnStop")
+        }
+
+        self.buttons = [
+            Button(
+                self.controls_frame, image=self.images["backward"], command=lambda:player.move_current_pos(-1)),
+            Button(
+                self.controls_frame, image=self.images["forward"], command=lambda:player.move_current_pos(1)),
+            Button(
+                self.controls_frame, image=self.images["play"], command=player.play),
+            Button(
+                self.controls_frame, image=self.images["pause"], command=player.toggle_pause),
+            Button(
+                self.controls_frame, image=self.images["stop"], command=player.stop)
+        ]
+
+        for i, button in enumerate(self.buttons):
+            button.grid(row=0, column=i+1, ipadx=5, ipady=5, padx=2)
+
+    @property
+    def current_track_sel_pos(self):
+        selection = self.tracks_box.curselection()
+        return selection[0] if selection else None
+
+    def update_progress(self):
+        if self.player.stopped:
+            return
+
+        track = self.player.current_track
+
+        if int(self.slider.get()) == int(track.length):
+            self.status.config(
+                text='Time Elapsed: {strf_length} / {strf_length}'.format(
+                    track)
+            )
+        elif self.player.paused:
+            pass
+        elif int(self.slider.get()) == int(self.player.current_time):
+            slider_pos = int(track.length)
+            self.slider.config(to=slider_pos, value=int(
+                self.player.current_time))
+        else:
+            slider_pos = int(track.length)
+            self.slider.config(to=slider_pos, value=int(self.slider.get()))
+            self.status.config(
+                text=f'Time Elapsed: {player.current_time} / {player.current_track.length}'
+            )
+            self.slider.config(value=int(self.slider.get())+1)
+        self.status.after(1000, self.update_progress)
+
+    def slide(self, x):
+        self.player.go_to(int(self.slider.get()))
+
+    def volume(self, x):
+        self.player.set_volume(self.volume_slider.get())
+
+
+class Track:
+    def __init__(self, path):
+        self.abspath = path
+        self.filename = os.path.splitext(os.path.basename(path))[0]
+        self.meta = MP3(path)
+        self.length = self.meta.info.length
+        self.strf_length = time.strftime('%M:%S', time.gmtime(self.length))
+
+
+class Player:
+    def __init__(self):
+        pygame.mixer.init()
+        self.paused = False
+        self.stopped = False
+        self._tracks = []
+        self.music = pygame.mixer.music
+        self._current_track = None
+        self._GUI = None
+
+    @property
+    def current_time(self) -> float:
+        return self.music.get_pos() / 1000 + 1
+
+    @property
+    def strf_current_time(self) -> str:
+        return time.strftime('%M:%S', time.gmtime(self.current_time))
+
+    @property
+    def current_track(self) -> Track | None:
+        if self._current_track:
+            return self._current_track
+        elif self.tracks:
+            return self.tracks[0]
+        else:
+            return None
+
+    @property
+    def current_track_pos(self) -> int:
+        if self.current_track and not self.stopped:
+            return self.tracks.index(self.current_track)
+        return self.GUI.current_track_sel_pos
+
+    @property
+    def tracks(self) -> list[Track]:
+        return self._tracks
+
+    @current_track.setter
+    def current_track(self, track: Track) -> Track:
+        self._current_track = track
+        return self._current_track
+
+    @property
+    def GUI(self) -> GUI | None:
+        return None if not self._GUI else self._GUI
+
+    @GUI.setter
+    def GUI(self, GUI: GUI) -> GUI:
+        self._GUI = GUI
+        return self._GUI
+
+    def add_track(self, multiple=False) -> list[Track]:
+        if multiple:
+            tracks = map(
+                lambda file: Track(file),
+                filedialog.askopenfilenames(
+                    initialdir=TracksDir,
+                    title="Choose Songs",
+                    filetypes=(("MP3 Audio Files", "*.mp3"), )
+                )
+            )
+        else:
+            tracks = [
+                Track(
+                    filedialog.askopenfilename(
+                        initialdir=TracksDir,
+                        title="Choose A Song",
+                        filetypes=(("MP3 Audio Files", "*.mp3"), ))
+                )
+            ]
+
+        for track in tracks:
+            self.GUI.tracks_box.insert(END, track.abspath)
+            self.tracks.append(track)
+
+    def play(self):
+        selection_pos = self.GUI.current_track_sel_pos
+
+        if self.paused:
+            if selection_pos != None and selection_pos != self.current_track_pos:
+                pass
+            else:
+                return self.toggle_pause()
+        if not self.current_track:
+            return
+
+        self.stopped = False
+
+        if selection_pos == None:
+            self.music.load(self.current_track.abspath)
+        else:
+            self.music.load(self.tracks[selection_pos].abspath)
+
+        self.music.play(loops=0)
+        self.GUI.update_progress()
+
+    def stop(self):
+        if self.stopped:
+            return
+        self.GUI.status.config(text="")
+        self.GUI.slider.config(value=0)
+        self.music.stop()
+        self.GUI.tracks_box.selection_clear(ACTIVE)
+        self.stopped = True
+
+    def toggle_pause(self):
+        self.music.unpause() if self.paused else self.music.pause()
+        self.paused = not self.paused
+        return self.paused
+
+    def move_current_pos(self, step):
+        self.GUI.status.config(text="")
+        self.GUI.slider.config(value=0)
+        target_track_pos = self.current_track_pos + step
+        track = self.tracks[target_track_pos]
+        self.music.load(track.abspath)
+        self.music.play(loops=0)
+
+        self.GUI.tracks_box.select_clear(0, END)
+        self.GUI.tracks_box.activate(target_track_pos)
+        self.GUI.tracks_box.selection_set(target_track_pos, last=None)
+
+    def del_track(self):
+        self.stop()
+        self.GUI.tracks_box.delete(ANCHOR)
+
+    def del_all_tracks(self):
+        self.stop()
+        self.GUI.tracks_box.delete(0, END)
+
+    def go_to(self, start):
+        self.music.load(self.current_track.abspath)
+        self.music.play(loops=0, start=start)
+
+    def set_volume(self, volume):
+        self.music.set_volume(volume)
+
+# Main
+
+
+player = Player()
+window = GUI()
+player.GUI = window
+window.root.mainloop()
