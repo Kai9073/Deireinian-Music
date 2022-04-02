@@ -106,12 +106,12 @@ class GUI:
 
         self.track_title = Label(
             master=self.track_info_frame,
-            text="Track Title 00000",
+            text="",
             font=('Helvetica', '20')
         )
         self.track_artist = Label(
             master=self.track_info_frame,
-            text="Artist 000000 / AaBbCcDd",
+            text="",
             font=('Helvetica', '12'))
         self.track_title.grid(row=0, column=0)
         self.track_artist.grid(row=1, column=0)
@@ -185,6 +185,12 @@ class GUI:
                 text=f'Time Elapsed: {player.strf_current_time} / {player.current_track.strf_length}'
             )
         self.status.after(1000, self.update_progress)
+    
+    def update_track_info(self):
+        info = self.player.current_track.details
+        self.track_title.config(text=info.title)
+        self.track_artist.config(text=info.artist)
+
 
     def slide(self, x):
         self.player.go_to(int(self.slider.get()))
@@ -348,6 +354,7 @@ class Player:
             self.current_track = self.tracks[selection_pos]
 
         self.music.play(loops=0)
+        self.GUI.update_track_info()
         self.GUI.update_progress()
 
     def stop(self):
@@ -373,6 +380,7 @@ class Player:
         self.GUI.tracks_box.selection_clear(0, END)
         self.GUI.tracks_box.selection_set(target_track_pos, last=None)
         self.GUI.tracks_box.activate(target_track_pos)
+        self.GUI.update_track_info()
         self.play()
 
     def del_track(self):
