@@ -1,4 +1,5 @@
 import configparser
+import errno
 import os
 import time
 from tkinter import *
@@ -6,19 +7,42 @@ from tkinter import filedialog
 import tkinter.ttk as ttk
 import pygame
 from mutagen.mp3 import MP3
+import mutagen
 from PIL import ImageTk, Image
+import dill
 
 AssetsDir = os.path.join(os.path.dirname(__file__), "assets")
-ImagesDir = os.path.join(AssetsDir, "images")
-TracksDir = os.path.join(os.path.dirname(__file__), "tracks", "")
+
 config = configparser.ConfigParser()
 config.read(os.path.join(AssetsDir, "config.ini"))
+
+ImagesDir = os.path.join(os.path.dirname(
+    __file__), config["ImagePaths"]["MainDir"])
+TracksDir = os.path.join(os.path.dirname(__file__), "tracks", "")
+SavesDir = os.path.join(os.path.dirname(__file__), config["Saves"]["dir"])
 
 
 def get_photoimage(name):
     return ImageTk.PhotoImage(
         Image.open(os.path.join(ImagesDir, config["ImagePaths"][name]))
     )
+
+
+def check_permssions(path):
+    try:
+        with open(path) as f:
+            f.read()
+            return True
+    except IOError as x:
+        if x.errno == errno.ENOENT:
+            print(f'[ENOENT] {path} - File doesn\'t exist, skipping...')
+        elif x.errno == errno.EACCES:
+            print(f'[EACCES] {path} - Permission denied, skipping...')
+        else:
+            print(f'[Errno {x.errno}] {path} - Could not read file')
+        return False
+    except UnicodeDecodeError:
+        return True
 
 # Classes
 
@@ -75,21 +99,38 @@ class GUI:
         )
         self.tracks_box.grid(row=0, column=0)
 
+        # Track Info
+
+        self.track_info_frame = Frame(self.frame)
+        self.track_info_frame.grid(row=1, column=0, pady=(20, 0))
+
+        self.track_title = Label(
+            master=self.track_info_frame,
+            text="Track Title 00000",
+            font=('Helvetica', '20')
+        )
+        self.track_artist = Label(
+            master=self.track_info_frame,
+            text="Artist 000000 / AaBbCcDd",
+            font=('Helvetica', '12'))
+        self.track_title.grid(row=0, column=0)
+        self.track_artist.grid(row=1, column=0)
+
         # Controls #
 
         self.controls_frame = Frame(self.frame)
-        self.controls_frame.grid(row=1, column=0, pady=20)
+        self.controls_frame.grid(row=2, column=0, pady=20)
 
-        self.volume_frame = LabelFrame(self.frame, text="Volume")
-        self.volume_frame.grid(row=0, column=1, padx=30)
+        self.volume_frame = LabelFrame(self.controls_frame, text="Volume")
+        self.volume_frame.grid(row=0, column=5, padx=(30, 5))
 
         self.slider = ttk.Scale(self.frame, from_=0, to=100,
                                 orient=HORIZONTAL, value=0, command=self.slide, length=360)
-        self.slider.grid(row=2, column=0, pady=10)
+        self.slider.grid(row=3, column=0)
 
         self.volume_slider = ttk.Scale(self.volume_frame, from_=0, to=1,
-                                       orient=VERTICAL, value=1, command=self.volume, length=125)
-        self.volume_slider.pack(pady=10)
+                                       orient=HORIZONTAL, value=1, command=self.volume, length=125)
+        self.volume_slider.pack(padx=10, pady=3)
 
         self.status = Label(self.root, text="", bd=1, relief=GROOVE, anchor=E)
         self.status.pack(fill=X, side=BOTTOM, ipady=2)
@@ -116,7 +157,7 @@ class GUI:
         ]
 
         for i, button in enumerate(self.buttons):
-            button.grid(row=0, column=i+1, ipadx=5, ipady=5, padx=2)
+            button.grid(row=0, column=i, ipadx=5, ipady=5, padx=2)
 
     @property
     def current_track_sel_pos(self):
@@ -129,24 +170,20 @@ class GUI:
 
         track = self.player.current_track
 
-        if int(self.slider.get()) == int(track.length):
-            self.status.config(
-                text='Time Elapsed: {strf_length} / {strf_length}'.format(
-                    track)
-            )
-        elif self.player.paused:
+        if self.player.paused:
             pass
-        elif int(self.slider.get()) == int(self.player.current_time):
-            slider_pos = int(track.length)
-            self.slider.config(to=slider_pos, value=int(
-                self.player.current_time))
-        else:
-            slider_pos = int(track.length)
-            self.slider.config(to=slider_pos, value=int(self.slider.get()))
+        elif int(self.slider.get()) >= int(track.length):
             self.status.config(
-                text=f'Time Elapsed: {player.current_time} / {player.current_track.length}'
+                text='Time Elapsed: {0} / {0}'.format(track.strf_length)
             )
-            self.slider.config(value=int(self.slider.get())+1)
+            self.player.move_current_pos(1)
+        else:
+            slider_length = int(track.length)
+            self.slider.config(to=slider_length, value=int(
+                self.player.current_time))
+            self.status.config(
+                text=f'Time Elapsed: {player.strf_current_time} / {player.current_track.strf_length}'
+            )
         self.status.after(1000, self.update_progress)
 
     def slide(self, x):
@@ -156,13 +193,45 @@ class GUI:
         self.player.set_volume(self.volume_slider.get())
 
 
+class TrackInfo:
+    def __init__(self, meta, path):
+        self.meta = meta
+        self.path = path
+        self.details = mutagen.File(path, None, True)
+
+    @property
+    def album(self):
+        if 'album' in self.details and len(self.details["album"]) > 0:
+            return self.details["album"][0]
+        else:
+            return None
+
+    @property
+    def title(self):
+        if 'title' in self.details and len(self.details["title"]) > 0:
+            return self.details["title"][0]
+        else:
+            return None
+
+    @property
+    def artist(self):
+        if 'artist' in self.details and len(self.details["artist"]) > 0:
+            return " / ".join(self.details["artist"])
+        else:
+            return None
+
+
 class Track:
-    def __init__(self, path):
+    def __init__(self, path: str):
+        self.readable = check_permssions(path)
+        if not self.readable:
+            return
         self.abspath = path
         self.filename = os.path.splitext(os.path.basename(path))[0]
         self.meta = MP3(path)
         self.length = self.meta.info.length
         self.strf_length = time.strftime('%M:%S', time.gmtime(self.length))
+        self.details = TrackInfo(self.meta, self.abspath)
 
 
 class Player:
@@ -170,6 +239,7 @@ class Player:
         pygame.mixer.init()
         self.paused = False
         self.stopped = False
+        self.track_pos_offset = 0
         self._tracks = []
         self.music = pygame.mixer.music
         self._current_track = None
@@ -177,7 +247,7 @@ class Player:
 
     @property
     def current_time(self) -> float:
-        return self.music.get_pos() / 1000 + 1
+        return self.music.get_pos() / 1000 + 1 + self.track_pos_offset
 
     @property
     def strf_current_time(self) -> str:
@@ -193,14 +263,22 @@ class Player:
             return None
 
     @property
-    def current_track_pos(self) -> int:
-        if self.current_track and not self.stopped:
+    def current_track_pos(self) -> int | None:
+        if self.current_track and not self.stopped and self.tracks:
             return self.tracks.index(self.current_track)
         return self.GUI.current_track_sel_pos
 
     @property
     def tracks(self) -> list[Track]:
         return self._tracks
+
+    @tracks.setter
+    def tracks(self, tracks: list[Track]):
+        for track in tracks:
+            if not track.readable:
+                continue
+            self.GUI.tracks_box.insert(END, track.filename)
+            self._tracks.append(track)
 
     @current_track.setter
     def current_track(self, track: Track) -> Track:
@@ -237,8 +315,12 @@ class Player:
             ]
 
         for track in tracks:
-            self.GUI.tracks_box.insert(END, track.abspath)
-            self.tracks.append(track)
+            if not track.readable:
+                continue
+            self.GUI.tracks_box.insert(END, track.filename)
+            self._tracks.append(track)
+
+        self.save()
 
     def play(self):
         selection_pos = self.GUI.current_track_sel_pos
@@ -253,10 +335,17 @@ class Player:
 
         self.stopped = False
 
+        self.track_pos_offset = 0
         if selection_pos == None:
             self.music.load(self.current_track.abspath)
+            if self.current_track_pos != None:
+                current_pos = self.current_track_pos
+                self.GUI.tracks_box.selection_clear(0, END)
+                self.GUI.tracks_box.selection_set(current_pos, last=None)
+                self.GUI.tracks_box.activate(current_pos)
         else:
             self.music.load(self.tracks[selection_pos].abspath)
+            self.current_track = self.tracks[selection_pos]
 
         self.music.play(loops=0)
         self.GUI.update_progress()
@@ -267,7 +356,6 @@ class Player:
         self.GUI.status.config(text="")
         self.GUI.slider.config(value=0)
         self.music.stop()
-        self.GUI.tracks_box.selection_clear(ACTIVE)
         self.stopped = True
 
     def toggle_pause(self):
@@ -276,16 +364,16 @@ class Player:
         return self.paused
 
     def move_current_pos(self, step):
-        self.GUI.status.config(text="")
-        self.GUI.slider.config(value=0)
-        target_track_pos = self.current_track_pos + step
-        track = self.tracks[target_track_pos]
-        self.music.load(track.abspath)
-        self.music.play(loops=0)
-
-        self.GUI.tracks_box.select_clear(0, END)
-        self.GUI.tracks_box.activate(target_track_pos)
+        current_track_pos = self.current_track_pos if self.current_track_pos != None else -1
+        target_track_pos = current_track_pos + step
+        if ((target_track_pos < 0) | (target_track_pos > len(self.tracks)-1)):
+            target_track_pos = 0
+        self.stop()
+        print('target', target_track_pos)
+        self.GUI.tracks_box.selection_clear(0, END)
         self.GUI.tracks_box.selection_set(target_track_pos, last=None)
+        self.GUI.tracks_box.activate(target_track_pos)
+        self.play()
 
     def del_track(self):
         self.stop()
@@ -296,11 +384,24 @@ class Player:
         self.GUI.tracks_box.delete(0, END)
 
     def go_to(self, start):
-        self.music.load(self.current_track.abspath)
+        self.track_pos_offset = start
         self.music.play(loops=0, start=start)
 
     def set_volume(self, volume):
         self.music.set_volume(volume)
+
+    def save(self):
+        with open(os.path.join(AssetsDir, config["Saves"]["filename"]), "wb") as f:
+            dill.dump(self._tracks, f)
+
+    def load(self):
+        with open(os.path.join(SavesDir, config["Saves"]["filename"]), "rb") as f:
+            try:
+                self.tracks = dill.load(f)
+            except Exception as e:
+                print("No saved data found / Could not load saved data:")
+                print(e)
+
 
 # Main
 
@@ -308,4 +409,5 @@ class Player:
 player = Player()
 window = GUI()
 player.GUI = window
+player.load()
 window.root.mainloop()
