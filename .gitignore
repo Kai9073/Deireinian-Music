@@ -1,3 +1,6 @@
 *.mp3
 tracks/*.mp3
 /assets/images/*.png
+/assets/images/*.jpeg
+/assets/images/*.jpg
+/assets/images/*.svg
