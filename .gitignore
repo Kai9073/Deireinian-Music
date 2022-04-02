@@ -4,3 +4,4 @@ tracks/*.mp3
 /assets/images/*.jpeg
 /assets/images/*.jpg
 /assets/images/*.svg
+*.pik
