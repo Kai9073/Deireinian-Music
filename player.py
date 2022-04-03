@@ -40,7 +40,7 @@ def check_permssions(path):
         elif x.errno == errno.EACCES:
             print(f'[EACCES] {path} - Permission denied, skipping...')
         else:
-            print(f'[Errno {x.errno}] {path} - Could not read file')
+            print(f'[ERR {x.errno}] {path} - Could not read file')
         return False
     except UnicodeDecodeError:
         return True
