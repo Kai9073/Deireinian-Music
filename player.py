@@ -125,11 +125,13 @@ class GUI:
         self.volume_frame.grid(row=0, column=5, padx=(30, 5))
 
         self.slider = ttk.Scale(self.frame, from_=0, to=100,
-                                orient=HORIZONTAL, value=0, command=self.slide, length=360)
+                                orient=HORIZONTAL, value=0,
+                                command=self.slide, length=360)
         self.slider.grid(row=3, column=0)
 
-        self.volume_slider = ttk.Scale(self.volume_frame, from_=0, to=1,
-                                       orient=HORIZONTAL, value=1, command=self.volume, length=125)
+        self.volume_slider = ttk.Scale(master=self.volume_frame, from_=0,
+                                       to=1, orient=HORIZONTAL, value=1,
+                                       command=self.volume, length=125)
         self.volume_slider.pack(padx=10, pady=3)
 
         self.status = Label(self.root, text="", bd=1, relief=GROOVE, anchor=E)
@@ -144,16 +146,16 @@ class GUI:
         }
 
         self.buttons = [
-            Button(
-                self.controls_frame, image=self.images["backward"], command=lambda:player.move_current_pos(-1)),
-            Button(
-                self.controls_frame, image=self.images["forward"], command=lambda:player.move_current_pos(1)),
-            Button(
-                self.controls_frame, image=self.images["play"], command=player.play),
-            Button(
-                self.controls_frame, image=self.images["pause"], command=player.toggle_pause),
-            Button(
-                self.controls_frame, image=self.images["stop"], command=player.stop)
+            Button(self.controls_frame, image=self.images["backward"],
+                   command=lambda:player.move_current_pos(-1)),
+            Button(self.controls_frame, image=self.images["forward"],
+                   command=lambda:player.move_current_pos(1)),
+            Button(self.controls_frame, image=self.images["play"],
+                   command=player.play),
+            Button(self.controls_frame, image=self.images["pause"],
+                   command=player.toggle_pause),
+            Button(self.controls_frame, image=self.images["stop"],
+                   command=player.stop)
         ]
 
         for i, button in enumerate(self.buttons):
@@ -182,15 +184,17 @@ class GUI:
             self.slider.config(to=slider_length, value=int(
                 self.player.current_time))
             self.status.config(
-                text=f'Time Elapsed: {player.strf_current_time} / {player.current_track.strf_length}'
+                text='Time Elapsed: {} / {}'.format(
+                    player.strf_current_time,
+                    player.current_track.strf_length
+                )
             )
         self.status.after(1000, self.update_progress)
-    
+
     def update_track_info(self):
         info = self.player.current_track.details
         self.track_title.config(text=info.title)
         self.track_artist.config(text=info.artist)
-
 
     def slide(self, x):
         self.player.go_to(int(self.slider.get()))
@@ -332,7 +336,8 @@ class Player:
         selection_pos = self.GUI.current_track_sel_pos
 
         if self.paused:
-            if selection_pos != None and selection_pos != self.current_track_pos:
+            if (selection_pos is not None
+                    and selection_pos != self.current_track_pos):
                 pass
             else:
                 return self.toggle_pause()
@@ -342,9 +347,9 @@ class Player:
         self.stopped = False
 
         self.track_pos_offset = 0
-        if selection_pos == None:
+        if selection_pos is None:
             self.music.load(self.current_track.abspath)
-            if self.current_track_pos != None:
+            if self.current_track_pos is not None:
                 current_pos = self.current_track_pos
                 self.GUI.tracks_box.selection_clear(0, END)
                 self.GUI.tracks_box.selection_set(current_pos, last=None)
@@ -371,7 +376,9 @@ class Player:
         return self.paused
 
     def move_current_pos(self, step):
-        current_track_pos = self.current_track_pos if self.current_track_pos != None else -1
+        current_track_pos = (self.current_track_pos
+                             if self.current_track_pos is not None
+                             else -1)
         target_track_pos = current_track_pos + step
         if ((target_track_pos < 0) | (target_track_pos > len(self.tracks)-1)):
             target_track_pos = 0
@@ -399,11 +406,13 @@ class Player:
         self.music.set_volume(volume)
 
     def save(self):
-        with open(os.path.join(AssetsDir, config["Saves"]["filename"]), "wb") as f:
+        save_file = config["Saves"]["filename"]
+        with open(os.path.join(AssetsDir, save_file), "wb") as f:
             dill.dump(self._tracks, f)
 
     def load(self):
-        with open(os.path.join(SavesDir, config["Saves"]["filename"]), "rb") as f:
+        save_file = config["Saves"]["filename"]
+        with open(os.path.join(SavesDir, save_file), "rb") as f:
             try:
                 self.tracks = dill.load(f)
             except Exception as e:
