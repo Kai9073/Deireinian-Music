@@ -5,3 +5,4 @@ tracks/*.mp3
 /assets/images/*.jpg
 /assets/images/*.svg
 *.pik
+.vscode/*
