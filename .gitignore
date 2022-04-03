@@ -6,3 +6,5 @@ tracks/*.mp3
 /assets/images/*.svg
 *.pik
 .vscode/*
+
+!sample.png
