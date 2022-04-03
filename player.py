@@ -2,14 +2,15 @@ import configparser
 import errno
 import os
 import time
+import tkinter.ttk as ttk
 from tkinter import *
 from tkinter import filedialog
-import tkinter.ttk as ttk
+
+import dill
+import mutagen
 import pygame
 from mutagen.mp3 import MP3
-import mutagen
-from PIL import ImageTk, Image
-import dill
+from PIL import Image, ImageTk
 
 AssetsDir = os.path.join(os.path.dirname(__file__), "assets")
 
@@ -35,7 +36,7 @@ def check_permssions(path):
             return True
     except IOError as x:
         if x.errno == errno.ENOENT:
-            print(f'[ENOENT] {path} - File doesn\'t exist, skipping...')
+            print(f"[ENOENT] {path} - File does't exist, skipping...")
         elif x.errno == errno.EACCES:
             print(f'[EACCES] {path} - Permission denied, skipping...')
         else:
